@@ -5,22 +5,19 @@ contract ProposalContract {
     /*****************DATA RELATED CODE****************/
     uint256 private counter;
     address owner;
-    //voted_address is changed to become two dimensional array.
-    //Voter of proposal number n will be pushed to voted_addresses[n][].  
     //address[] private voted_addresses; 
 
-    /*Experiment*/
+    //In this version voters array(type of Voter struct) holds voter address and the proposal number 
     struct Voter{
         uint256 proposal_number;
         address voter_address;
     }
 
     Voter[] private voters;
-    /*Experiment ends*/
 
     constructor() {
         owner = msg.sender;
-        voters.push(Voter(0, msg.sender));
+        voters.push(Voter(0, msg.sender)); //Address of the creater of the ProposalContract is at voters[0].voter_address
     }
 
     struct Proposal {
@@ -43,12 +40,12 @@ contract ProposalContract {
 
 
     //If proposal is not active, then voting is stopped.
-    modifier active() {
-        require(proposal_history[counter].is_active == true, "The proposal is not active");
+    modifier active(uint256 number) {
+        require(proposal_history[number].is_active == true, "The proposal is not active");
         _;
     }
 
-    //One person can not vote twice.
+    //One person can not vote twice for the same proposal 
     modifier newVoter(uint256 number, address _address) {
         require(!isVoted(number, _address), "Address has already voted");
         _;
@@ -62,6 +59,8 @@ contract ProposalContract {
     function create(string calldata _title, string calldata _description, uint256 _total_vote_to_end) external onlyOwner {
         counter += 1; //Attention here: this will make counter=1, thus proposal_country[0] does not contain any created proposal. 
         proposal_history[counter] = Proposal(_title, _description, 0, 0, 0, _total_vote_to_end, false, true);
+        voters.push(Voter(counter, msg.sender));//When proposal is created, whomever created that proposal is added to the voters array
+
     }
 
     //To pass ownership of contract to another user
@@ -106,8 +105,10 @@ contract ProposalContract {
 
     //Voting function
     //I made the function more flexible by allowing users to choose whichever 
-    //proposal they want to vote, not just the current one.
-    function voteProposal(uint256 number, uint8 choice) external active newVoter(number, msg.sender){
+    //proposal they want to vote, not just the current one. 
+    //This change also requiers changes in active(), newVoter() modifiers and in isVoted(), terminateProposal() functions.
+
+    function voteProposal(uint256 number, uint8 choice) external active(number) newVoter(number, msg.sender){
         if(!(0<=choice && choice<3)) revert("You made invalid choice. Valid choices are: 0(for pass), 1(for approve) and 2(for reject).");
         if(number>counter) revert("Invalid proposal number.");
          // First part
@@ -116,9 +117,7 @@ contract ProposalContract {
 
         //voted_addresses.push(msg.sender);
 
-    /*Experiment*/
-        voters.push(Voter(1, msg.sender));
-    /*Experiment ends*/
+        voters.push(Voter(number, msg.sender));
 
         // Second part
         //Since calculateCurrenState() will be executed regardles of the choice,
@@ -146,11 +145,11 @@ contract ProposalContract {
     }
 
 
-    function teminateProposal() external onlyOwner active {
-       proposal_history[counter].is_active = false;
+    function teminateProposal(uint256 number) external onlyOwner active(number) {
+       proposal_history[number].is_active = false;
     }
 
-    /*
+    
     //I added fundContract() , to let users to fund the contract
     function fundContract() public payable{
         
@@ -158,11 +157,9 @@ contract ProposalContract {
 
     //withdraw() function to transfer currency from the contract to the owner
      function withdraw() public onlyOwner{
-       (bool callSuccess, )=payable (msg.sender).call{value: address(this).balance}("");
+       (bool callSuccess, ) = payable (msg.sender).call{value: address(this).balance}("");
        require(callSuccess, "Call failed");
      }
-
-    */
 
 
     /******************QUERY FUNCTIONS*******************/
